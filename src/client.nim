@@ -16,13 +16,16 @@ type
     joining = "joining"
     leaving = "leaving"
 
-  SREvents* {.pure.} = enum
+  ChannelEvents* {.pure.} = enum
     close     = "phx_close"
     error     = "phx_error"
     join      = "phx_join"
     reply     = "phx_reply"
     leave     = "phx_leave"
     heartbeat = "heartbeat"
+    access_token = "access_token"
+    broadcast = "broadcast"
+    presence = "presence"
 
 proc close*(self: RealtimeClient) {.inline.} = self.client.close()
 
