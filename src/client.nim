@@ -33,6 +33,11 @@ type
     closed        = "closed"
     channel_error = "channel_error"
 
+  RealTimePresenceListenEvents* {.pure.} = enum
+    sync = "sync"
+    join = "join"
+    leave = "leave"
+
 proc close*(self: RealtimeClient) {.inline.} = self.client.close()
 
 func connect*(self: RealtimeClient) {.inline.} = discard  # Do nothing?.
