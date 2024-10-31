@@ -9,6 +9,13 @@ type
     url*: string
     client: WebSocket
 
+  ChannelStates* {.pure.} = enum
+    joined  = "joined"
+    closed  = "closed"
+    errored = "errored"
+    joining = "joining"
+    leaving = "leaving"
+
   SREvents* {.pure.} = enum
     close     = "phx_close"
     error     = "phx_error"
