@@ -3,6 +3,10 @@
 # Elixir Phoenix Channels are basically just a websocket.
 import whisky  # https://github.com/guzba/whisky
 
+const
+  DEFAULT_TIMEOUT = 10
+  PHOENIX_CHANNEL = "phoenix"
+
 type
   RealtimeClient* = object
     channel*: string  # channel: string should be channels: seq[Channel] ???
@@ -42,7 +46,7 @@ proc close*(self: RealtimeClient) {.inline.} = self.client.close()
 
 func connect*(self: RealtimeClient) {.inline.} = discard  # Do nothing?.
 
-proc newRealtimeClient*(url: string): RealtimeClient = RealtimeClient(url: url, client: newWebSocket(url))
+proc newRealtimeClient*(url: string, token: string): RealtimeClient = RealtimeClient(url: url, client: newWebSocket(url & "/websocket?apikey=" & token))
 
 template setChannel*(self: RealtimeClient; topic: string) =
   # https://github.com/supabase-community/realtime-py/blob/8bcf6da63e161d7127292a079887952d2c8a2722/realtime/connection.py#L142-L148
