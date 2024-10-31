@@ -17,15 +17,21 @@ type
     leaving = "leaving"
 
   ChannelEvents* {.pure.} = enum
-    close     = "phx_close"
-    error     = "phx_error"
-    join      = "phx_join"
-    reply     = "phx_reply"
-    leave     = "phx_leave"
-    heartbeat = "heartbeat"
+    close        = "phx_close"
+    error        = "phx_error"
+    join         = "phx_join"
+    reply        = "phx_reply"
+    leave        = "phx_leave"
+    heartbeat    = "heartbeat"
     access_token = "access_token"
-    broadcast = "broadcast"
-    presence = "presence"
+    broadcast    = "broadcast"
+    presence     = "presence"
+
+  RealTimeSubscribeState* {.pure.} = enum
+    subscribed    = "subscribed"
+    timed_out     = "timed_out"
+    closed        = "closed"
+    channel_error = "channel_error"
 
 proc close*(self: RealtimeClient) {.inline.} = self.client.close()
 
