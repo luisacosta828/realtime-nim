@@ -6,3 +6,5 @@ var
   key = getEnv("SUPABASE_KEY")
 var rclient = newRealtimeClient(url, key)
 echo $rclient
+echo rclient.getChannels()
+rclient.summary()
