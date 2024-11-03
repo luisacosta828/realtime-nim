@@ -99,12 +99,9 @@ proc summary*(self: RealtimeClient) =
 proc listen*(self: RealtimeClient): auto =
   self.client.receiveMessage()
 
-proc join*(self: RealtimeClient, topic: string): Channel =
-  var params = self.channels["realtime:" & topic].params
-  var j2     = %* {"topic": "realtime:"&topic, "event": "phx_join", "ref": nil, "payload": %*{"config": params}}
-
+proc join*(self: RealtimeClient, channel: Channel): Channel =
+  var j2  = %* {"topic": channel.topic, "event": "phx_join", "ref": nil, "payload": %*{"config": channel.params}}
   self.client.send($j2)
-
 
 proc on(self: var Channel, topic: string, filter: Table[string, string]) =
   if topic notin self.bindings:

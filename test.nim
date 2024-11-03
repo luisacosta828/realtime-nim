@@ -7,8 +7,7 @@ var
 var rclient = newRealtimeClient(url, key)
 var chan = rclient.setChannel("broadcast-test", broadcast_config)
 
-echo rclient.join("broadcast-test")
+echo rclient.join(chan)
 chan.on_postgres_changes("INSERT")
 echo rclient.listen()
-echo rclient.getChannels()
 
