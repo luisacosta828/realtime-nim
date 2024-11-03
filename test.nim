@@ -5,6 +5,10 @@ var
   url = getEnv("SUPABASE_URL")
   key = getEnv("SUPABASE_KEY")
 var rclient = newRealtimeClient(url, key)
-echo $rclient
+var chan = rclient.setChannel("broadcast-test", broadcast_config)
+
+echo rclient.join("broadcast-test")
+chan.on_postgres_changes("INSERT")
+echo rclient.listen()
 echo rclient.getChannels()
-rclient.summary()
+
