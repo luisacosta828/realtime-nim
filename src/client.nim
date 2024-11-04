@@ -122,6 +122,12 @@ proc summary*(self: RealtimeClient) =
     for event in chans.listeners:
       echo "Topic " & topic & " | Event " & $event
 
+proc trigger(self: Channel, topic: string, payload: JsonNode, reference: string) =
+  echo topic
+  echo payload
+  echo reference
+
+
 proc listen*(self: RealtimeClient): auto =
   var 
     raw_msg:  Option[Message]
@@ -132,8 +138,7 @@ proc listen*(self: RealtimeClient): auto =
       raw_msg  = self.client.receiveMessage()
       json_msg = parseJson(raw_msg.get.data)
       channel  = self.channels[json_msg["topic"].getStr]
-      echo json_msg
-      #channel._trigger(msg.event, msg.payload, msg.ref) 
+      channel.trigger(json_msg["topic"].getStr, json_msg["payload"], json_msg["ref"].getStr)
 
 proc join*(self: RealtimeClient, channel: Channel) =
   var j2  = %* {"topic": channel.topic, "event": "phx_join", "ref": nil, "payload": %*{"config": channel.params}}
@@ -198,4 +203,5 @@ proc subscribe*(self: RealtimeClient, channel: Channel) =
     }
     channel.join_push.update_payload(payload)
     self.rejoin(channel)
+
 
