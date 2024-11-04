@@ -15,6 +15,17 @@ type
     broadcast = "broadcast"
     presence  = "presence"
 
+  ChannelEvents* {.pure.} = enum
+    `close` = "phx_close"
+    error   = "phx_error"
+    join    = "phx_join"
+    reply   = "phx_reply"
+    leave   = "phx_leave"
+    heartbeat = "heartbeat"
+    access_token = "access_token"
+    broadcast = "broadcast"
+    presence = "presence"
+
   RealtimeChannelOptions = object
     case config: RealtimeChannelConfig
     of broadcast: 
@@ -23,28 +34,37 @@ type
       key: string
     private: bool
 
-  Callback[ParamSpec, RetVal] = proc(arg: ParamSpec): RetVal
-  CallbackListener = tuple[event: string]
+  Callback = proc(arg: JsonNode)
+  CallbackListener = tuple[event: string, callback: Callback]
 
   Binding = object
     `type`: string
     filter: Table[string, string]
+    callback: Callback
 
-  Channel = object
+  Channel = ref object
     topic: string
     params: RealtimeChannelOptions
     listeners: seq[CallbackListener]
     joined: bool
+    state: ChannelStates
     bindings: Table[string, seq[Binding]]
+    join_push: AsyncPush
 
-  RealtimeClient* = object
+  AsyncPush = ref object
+    event: string
+    payload: JsonNode
+    reference: ref int
+
+  RealtimeClient* = ref object
     channels*: TableRef[string, Channel]
     url*: string
     access_token: string
     client: WebSocket
     auto_reconnect: bool
     initial_backoff: float
-    max_retries: int
+    max_retries: Positive
+    reference: int
 
   ChannelStates* {.pure.} = enum
     joined  = "joined"
@@ -75,12 +95,14 @@ proc newRealtimeClient*(url: string, token: string): RealtimeClient =
 
 
 template broadcast_config*():RealtimeChannelOptions =
-  RealtimeChannelOptions(config: broadcast, self: true)
+  RealtimeChannelOptions(config: RealtimeChannelConfig.broadcast, self: true)
+
+proc initAsyncPush(event: string, payload: RealtimeChannelOptions): AsyncPush = AsyncPush(event: event, payload: %*{})
 
 proc setChannel*(self: RealtimeClient, topic: string, params: RealtimeChannelOptions): Channel =
   if topic.len > 0: 
     let channel_topic = "realtime:" & topic
-    result = Channel(topic: channel_topic, params: params)
+    result = Channel(topic: channel_topic, params: params, join_push: initAsyncPush($ChannelEvents.join, params))
     self.channels[channel_topic] = result
 
 proc getChannels*(self: RealtimeClient): seq[Channel] = 
@@ -101,23 +123,51 @@ proc summary*(self: RealtimeClient) =
       echo "Topic " & topic & " | Event " & $event
 
 proc listen*(self: RealtimeClient): auto =
-  self.client.receiveMessage()
+  var 
+    raw_msg:  Option[Message]
+    json_msg: JsonNode
+    channel:  Channel
+
+  while true:
+      raw_msg  = self.client.receiveMessage()
+      json_msg = parseJson(raw_msg.get.data)
+      channel  = self.channels[json_msg["topic"].getStr]
+      echo json_msg
+      #channel._trigger(msg.event, msg.payload, msg.ref) 
 
 proc join*(self: RealtimeClient, channel: Channel) =
   var j2  = %* {"topic": channel.topic, "event": "phx_join", "ref": nil, "payload": %*{"config": channel.params}}
   self.client.send($j2)
 
-proc on(self: var Channel, topic: string, filter: Table[string, string]) =
+proc on(self: var Channel, topic: string, filter: Table[string, string], callback: Callback) =
   if topic notin self.bindings:
     self.bindings[topic] = @[]
-  self.bindings[topic].add Binding(`type`: topic, filter: filter)
+  self.bindings[topic].add Binding(`type`: topic, filter: filter, callback: callback)
   
-proc on_postgres_changes*(self: var Channel, event: string, table: string = "*", schema: string = "public", filter: string = "") =
+proc on_postgres_changes*(self: var Channel, event: string, callback: Callback, table: string = "*", schema: string = "public", filter: string = "") =
   if event in RealtimePostgresChangesListenEvent:
     var bindings_filters = {"event": event, "schema": schema, "table": table}.toTable
     if filter.strip.len > 0:
       bindings_filters["filter"] = filter
-    self.on("postgres_changes", filter=bindings_filters)
+    self.on("postgres_changes", filter=bindings_filters, callback)
+
+template update_payload(self: AsyncPush, payload: JsonNode) = self.payload = payload
+
+
+template resend(self: RealtimeClient, channel: Channel, push: AsyncPush) =
+  inc(self.reference)
+  var msg = %* {
+    "topic": channel.topic,
+    "event": push.event,
+    "payload": push.payload,
+    "ref": $self.reference
+  }
+  self.client.send($msg)
+  
+
+template rejoin(self: RealtimeClient, channel: Channel) =
+  channel.state = ChannelStates.joining
+  self.resend(channel, channel.join_push)
 
 proc subscribe*(self: RealtimeClient, channel: Channel) =
   if not self.client.isNil:
@@ -146,5 +196,6 @@ proc subscribe*(self: RealtimeClient, channel: Channel) =
       },
       "access_token": self.access_token
     }
-    echo payload
+    channel.join_push.update_payload(payload)
+    self.rejoin(channel)
 

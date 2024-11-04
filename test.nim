@@ -1,5 +1,9 @@
 import src/client
 import std/envvars
+import std/json
+
+proc postgres_changes_callback(payload: JsonNode) =
+  echo payload
 
 var 
   url = getEnv("SUPABASE_URL")
@@ -7,7 +11,9 @@ var
 var rclient = newRealtimeClient(url, key)
 var chan = rclient.setChannel("broadcast-test", broadcast_config)
 
-echo rclient.join(chan)
-chan.on_postgres_changes("INSERT")
-echo rclient.listen()
+
+rclient.join(chan)
+chan.on_postgres_changes("INSERT", postgres_changes_callback)
+rclient.subscribe(chan)
+rclient.listen()
 
