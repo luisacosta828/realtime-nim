@@ -190,8 +190,7 @@ template rejoin =
     echo "Connection with server closed, trying to reconnect..."
     self.connect()
     for channel in self.channels.values():
-      self.join(channel)
-      self.subscribe(channel)
+      self.rejoin(channel)
   else:
     echo "Connection with the server closed."
     break
