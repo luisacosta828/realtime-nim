@@ -11,11 +11,17 @@ const
   RealtimePostgresChangesListenEvent = ["*", "INSERT", "DELETE", "UPDATE"]
 
 type
+  PostgresChanges* {.pure.} = enum
+    ALL = "*"
+    INSERT = "INSERT"
+    DELETE = "DELETE"
+    UPDATE = "UPDATE"
+
   RealtimeChannelConfig {.pure.} = enum
     broadcast = "broadcast"
     presence  = "presence"
 
-  ChannelEvents* {.pure.} = enum
+  ChannelEvents {.pure.} = enum
     `close` = "phx_close"
     error   = "phx_error"
     join    = "phx_join"
@@ -66,20 +72,20 @@ type
     max_retries: Positive
     reference: int
 
-  ChannelStates* {.pure.} = enum
+  ChannelStates {.pure.} = enum
     joined  = "joined"
     closed  = "closed"
     errored = "errored"
     joining = "joining"
     leaving = "leaving"
 
-  RealTimeSubscribeState* {.pure.} = enum
+  RealTimeSubscribeState {.pure.} = enum
     subscribed    = "subscribed"
     timed_out     = "timed_out"
     closed        = "closed"
     channel_error = "channel_error"
 
-  RealTimePresenceListenEvents* {.pure.} = enum
+  RealTimePresenceListenEvents {.pure.} = enum
     sync = "sync"
     join = "join"
     leave = "leave"
@@ -222,9 +228,9 @@ proc on(self: var Channel, topic: string, filter: Table[string, string], callbac
     self.bindings[topic] = @[]
   self.bindings[topic].add Binding(`type`: topic, filter: filter, callback: callback)
   
-proc on_postgres_changes*(self: var Channel, event: string, callback: Callback, table: string = "*", schema: string = "public", filter: string = "") =
-  if event in RealtimePostgresChangesListenEvent:
-    var bindings_filters = {"event": event, "schema": schema, "table": table}.toTable
+proc on_postgres_changes*(self: var Channel, event: PostgresChanges, callback: Callback, table: string = "*", schema: string = "public", filter: string = "") =
+  if $event in RealtimePostgresChangesListenEvent:
+    var bindings_filters = {"event": $event, "schema": schema, "table": table}.toTable
     if filter.strip.len > 0:
       bindings_filters["filter"] = filter
     self.on("postgres_changes", filter=bindings_filters, callback)
