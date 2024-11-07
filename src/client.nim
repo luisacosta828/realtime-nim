@@ -185,16 +185,19 @@ proc join*(self: RealtimeClient, channel: Channel) =
   var j2  = %* {"topic": channel.topic, "event": "phx_join", "ref": nil, "payload": %*{"config": channel.params}}
   self.client.send($j2)
 
+template rejoin =
+  echo "Connection with server closed, trying to reconnect..."
+  self.connect()
+  for channel in self.channels.values():
+    self.join(channel)
+    self.subscribe(channel)
+
 template retry(body: untyped) =
   while true:
     try:
       body
     except:
-      echo "Connection with server closed, trying to reconnect..."
-      self.connect()
-      for channel in self.channels.values():
-        self.join(channel)
-        self.subscribe(channel)
+      rejoin()
 
 proc listen*(self: RealtimeClient): auto =
   var 
