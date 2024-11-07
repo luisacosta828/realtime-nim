@@ -9,7 +9,7 @@ proc postgres_changes_callback(payload: JsonNode) =
 var 
   url = getEnv("SUPABASE_URL")
   key = getEnv("SUPABASE_KEY")
-var rclient = newRealtimeClient(url, key)
+var rclient = newRealtimeClient(url, key, auto_reconnect = true)
 var chan = rclient.setChannel("broadcast-test", broadcast_config)
 
 

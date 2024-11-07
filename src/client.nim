@@ -88,8 +88,8 @@ type
 template connect*(self: RealtimeClient) =  
   self.client   = newWebSocket(self.url & "/websocket?apikey=" & self.access_token)
 
-proc newRealtimeClient*(url: string, token: string, channels: TableRef[string, Channel] = newTable[string,Channel]()): RealtimeClient = 
-  result = RealtimeClient(url: url, channels: channels, initial_backoff: 1.0, max_retries: 5, access_token: token)
+proc newRealtimeClient*(url: string, token: string, channels: TableRef[string, Channel] = newTable[string,Channel](), auto_reconnect: bool = false): RealtimeClient = 
+  result = RealtimeClient(url: url, channels: channels, initial_backoff: 1.0, max_retries: 5, access_token: token, auto_reconnect: auto_reconnect)
   result.connect()
 
 
@@ -186,11 +186,15 @@ proc join*(self: RealtimeClient, channel: Channel) =
   self.client.send($j2)
 
 template rejoin =
-  echo "Connection with server closed, trying to reconnect..."
-  self.connect()
-  for channel in self.channels.values():
-    self.join(channel)
-    self.subscribe(channel)
+  if self.auto_reconnect:
+    echo "Connection with server closed, trying to reconnect..."
+    self.connect()
+    for channel in self.channels.values():
+      self.join(channel)
+      self.subscribe(channel)
+  else:
+    echo "Connection with the server closed."
+    break
 
 template retry(body: untyped) =
   while true:
