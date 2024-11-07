@@ -85,13 +85,12 @@ type
     leave = "leave"
 
 
-func connect*(self: RealtimeClient) {.inline.} = discard  # Do nothing?.
+template connect*(self: RealtimeClient) =  
+  self.client   = newWebSocket(self.url & "/websocket?apikey=" & self.access_token)
 
-proc newRealtimeClient*(url: string, token: string): RealtimeClient = 
-  let
-    client   = newWebSocket(url & "/websocket?apikey=" & token)
-    channels = newTable[string, Channel]()
-  RealtimeClient(url: url, client: client, channels: channels, initial_backoff: 1.0, max_retries: 5, access_token: token)
+proc newRealtimeClient*(url: string, token: string, channels: TableRef[string, Channel] = newTable[string,Channel]()): RealtimeClient = 
+  result = RealtimeClient(url: url, channels: channels, initial_backoff: 1.0, max_retries: 5, access_token: token)
+  result.connect()
 
 
 template broadcast_config*():RealtimeChannelOptions =
@@ -135,40 +134,6 @@ proc trigger(self: Channel, topic: string, payload: JsonNode, reference: string)
           binding.callback(payload)
 
 
-proc listen*(self: RealtimeClient): auto =
-  var 
-    raw_msg:  Option[Message]
-    json_msg: JsonNode
-    channel:  Channel
-    payload:  JsonNode
-
-  while true:
-      raw_msg  = self.client.receiveMessage()
-      json_msg = parseJson(raw_msg.get.data)
-      if json_msg["topic"].getStr in self.channels:
-        channel  = self.channels[json_msg["topic"].getStr]
-        payload  = json_msg["payload"]
-        channel.trigger(json_msg["event"].getStr, payload, json_msg["ref"].getStr)
-
-proc join*(self: RealtimeClient, channel: Channel) =
-  var j2  = %* {"topic": channel.topic, "event": "phx_join", "ref": nil, "payload": %*{"config": channel.params}}
-  self.client.send($j2)
-
-proc on(self: var Channel, topic: string, filter: Table[string, string], callback: Callback) =
-  if topic notin self.bindings:
-    self.bindings[topic] = @[]
-  self.bindings[topic].add Binding(`type`: topic, filter: filter, callback: callback)
-  
-proc on_postgres_changes*(self: var Channel, event: string, callback: Callback, table: string = "*", schema: string = "public", filter: string = "") =
-  if event in RealtimePostgresChangesListenEvent:
-    var bindings_filters = {"event": event, "schema": schema, "table": table}.toTable
-    if filter.strip.len > 0:
-      bindings_filters["filter"] = filter
-    self.on("postgres_changes", filter=bindings_filters, callback)
-
-template update_payload(self: AsyncPush, payload: JsonNode) = self.payload = payload
-
-
 template resend(self: RealtimeClient, channel: Channel, push: AsyncPush) =
   inc(self.reference)
   var msg = %* {
@@ -183,6 +148,8 @@ template resend(self: RealtimeClient, channel: Channel, push: AsyncPush) =
 template rejoin(self: RealtimeClient, channel: Channel) =
   channel.state = ChannelStates.joining
   self.resend(channel, channel.join_push)
+
+template update_payload(self: AsyncPush, payload: JsonNode) = self.payload = payload
 
 proc subscribe*(self: RealtimeClient, channel: Channel) =
   if not self.client.isNil:
@@ -214,4 +181,44 @@ proc subscribe*(self: RealtimeClient, channel: Channel) =
     channel.join_push.update_payload(payload)
     self.rejoin(channel)
 
+proc join*(self: RealtimeClient, channel: Channel) =
+  var j2  = %* {"topic": channel.topic, "event": "phx_join", "ref": nil, "payload": %*{"config": channel.params}}
+  self.client.send($j2)
 
+template retry(body: untyped) =
+  while true:
+    try:
+      body
+    except:
+      echo "Connection with server closed, trying to reconnect..."
+      self.connect()
+      for channel in self.channels.values():
+        self.join(channel)
+        self.subscribe(channel)
+
+proc listen*(self: RealtimeClient): auto =
+  var 
+    raw_msg:  Option[Message]
+    json_msg: JsonNode
+    channel:  Channel
+    payload:  JsonNode
+
+  retry:
+    raw_msg  = self.client.receiveMessage()
+    json_msg = parseJson(raw_msg.get.data)
+    if json_msg["topic"].getStr in self.channels:
+      channel  = self.channels[json_msg["topic"].getStr]
+      payload  = json_msg["payload"]
+      channel.trigger(json_msg["event"].getStr, payload, json_msg["ref"].getStr)
+
+proc on(self: var Channel, topic: string, filter: Table[string, string], callback: Callback) =
+  if topic notin self.bindings:
+    self.bindings[topic] = @[]
+  self.bindings[topic].add Binding(`type`: topic, filter: filter, callback: callback)
+  
+proc on_postgres_changes*(self: var Channel, event: string, callback: Callback, table: string = "*", schema: string = "public", filter: string = "") =
+  if event in RealtimePostgresChangesListenEvent:
+    var bindings_filters = {"event": event, "schema": schema, "table": table}.toTable
+    if filter.strip.len > 0:
+      bindings_filters["filter"] = filter
+    self.on("postgres_changes", filter=bindings_filters, callback)
