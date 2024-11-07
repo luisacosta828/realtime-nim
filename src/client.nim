@@ -123,9 +123,16 @@ proc summary*(self: RealtimeClient) =
       echo "Topic " & topic & " | Event " & $event
 
 proc trigger(self: Channel, topic: string, payload: JsonNode, reference: string) =
-  echo topic
-  echo payload
-  echo reference
+  let payload_fields = payload.getFields
+  if topic in self.bindings:
+    for binding in self.bindings[topic]:
+      if topic in ["broadcast", "postgres_changes", "presence"]:
+        var 
+          binding_event = binding.filter.getOrDefault("event")
+          data_type = payload_fields["data"].getFields()["type"].getStr
+
+        if binding_event == data_type:
+          binding.callback(payload)
 
 
 proc listen*(self: RealtimeClient): auto =
@@ -133,12 +140,15 @@ proc listen*(self: RealtimeClient): auto =
     raw_msg:  Option[Message]
     json_msg: JsonNode
     channel:  Channel
+    payload:  JsonNode
 
   while true:
       raw_msg  = self.client.receiveMessage()
       json_msg = parseJson(raw_msg.get.data)
-      channel  = self.channels[json_msg["topic"].getStr]
-      channel.trigger(json_msg["topic"].getStr, json_msg["payload"], json_msg["ref"].getStr)
+      if json_msg["topic"].getStr in self.channels:
+        channel  = self.channels[json_msg["topic"].getStr]
+        payload  = json_msg["payload"]
+        channel.trigger(json_msg["event"].getStr, payload, json_msg["ref"].getStr)
 
 proc join*(self: RealtimeClient, channel: Channel) =
   var j2  = %* {"topic": channel.topic, "event": "phx_join", "ref": nil, "payload": %*{"config": channel.params}}

@@ -3,6 +3,7 @@ import std/envvars
 import std/json
 
 proc postgres_changes_callback(payload: JsonNode) =
+  echo "postgres_changes_callback!"
   echo payload
 
 var 
