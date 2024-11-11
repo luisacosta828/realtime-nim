@@ -97,6 +97,7 @@ type
 
 const
   # DEFAULT_TIMEOUT = 10
+  MAX_RECONNECT_RETRIES = 1_000
   PHOENIX_CHANNEL = "phoenix"
   RealtimePostgresChangesListenEvent = ["*", "INSERT", "DELETE", "UPDATE"]
 
@@ -270,10 +271,11 @@ template rejoin =
 
 
 template retry(body: untyped) =
-  while true:
+  for counter in 0 .. MAX_RECONNECT_RETRIES:
     try:
       body
     except:
+      echo "Retry ", counter, " of ", MAX_RECONNECT_RETRIES
       rejoin()
 
 
