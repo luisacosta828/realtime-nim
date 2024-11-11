@@ -74,6 +74,7 @@ type
     auto_reconnect: bool
     initial_backoff: float = 1.0
     max_retries: Positive = 5.Positive
+    timeout: int = -1
     reference: int
 
   ChannelStates {.pure.} = enum
@@ -105,10 +106,14 @@ template connect*(self: RealtimeClient) =
   self.client = newWebSocket(self.url & "/websocket?apikey=" & self.access_token)
 
 
-proc newRealtimeClient*(url, token: string; channels = newTable[string, Channel](); auto_reconnect = false): RealtimeClient =
+proc close*(self: RealtimeClient) =
+  self.client.close()
+
+
+proc newRealtimeClient*(url, token: string; channels = newTable[string, Channel](); auto_reconnect = false; timeout = -1): RealtimeClient =
   assert url.len > 0, "url must be a valid HTTP URL string"
   assert token.len > 0, "token must be a valid JWT string"
-  result = RealtimeClient(url: url, channels: channels, initial_backoff: 1.0, max_retries: 5, access_token: token, auto_reconnect: auto_reconnect)
+  result = RealtimeClient(url: url, channels: channels, initial_backoff: 1.0, max_retries: 5, access_token: token, auto_reconnect: auto_reconnect, timeout: timeout)
   result.connect()
 
 
@@ -294,7 +299,7 @@ proc listen*(self: RealtimeClient): auto =
     payload: JsonNode
 
   retry:
-    raw_msg = self.client.receiveMessage()
+    raw_msg = self.client.receiveMessage(timeout = self.timeout)
     json_msg = parseJson(raw_msg.get.data)
     if json_msg["topic"].getStr in self.channels:
       channel = self.channels[json_msg["topic"].getStr]
