@@ -1,7 +1,7 @@
 # Websockets-based client for Elixir Phoenix Channels,
 # that also implements a Supabase Realtime client on top.
 # Elixir Phoenix Channels are basically just a websocket.
-import whisky # https://github.com/guzba/whisky
+import whisky # https://github.com/guzba/whisky 0.1.3
 import std/[assertions, tables, json]
 from std/strutils import strip
 
@@ -106,15 +106,19 @@ template connect*(self: RealtimeClient) =
   self.client = newWebSocket(self.url & "/websocket?apikey=" & self.access_token)
 
 
-proc close*(self: RealtimeClient) =
-  self.client.close()
-
-
 proc newRealtimeClient*(url, token: string; channels = newTable[string, Channel](); auto_reconnect = false; timeout = -1): RealtimeClient =
   assert url.len > 0, "url must be a valid HTTP URL string"
   assert token.len > 0, "token must be a valid JWT string"
   result = RealtimeClient(url: url, channels: channels, initial_backoff: 1.0, max_retries: 5, access_token: token, auto_reconnect: auto_reconnect, timeout: timeout)
   result.connect()
+
+
+proc close*(self: RealtimeClient) =
+  self.client.close()
+
+
+proc ping*(self: RealtimeClient) =
+  self.client.send("", MessageKind.Ping)
 
 
 template broadcast_config*(): RealtimeChannelOptions =
