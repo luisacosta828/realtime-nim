@@ -21,13 +21,13 @@ proc main() =
   let
     url = getEnv("SUPABASE_URL")
     key = getEnv("SUPABASE_KEY")
-    rclient = newRealtimeClient(url, key, auto_reconnect = true)
+    rclient = newRealtimeClient(url, key)
   var
     chan  = rclient.setChannel("pg-test", broadcast_config)
     chan2 = rclient.setChannel("broadcast_test", broadcast_config)
-  defer: rclient.close()
+  #defer: rclient.close()
 
-  rclient.ping()
+  #rclient.ping()
 
   rclient.join(chan)
   chan.on_postgres_changes(PostgresChanges.INSERT, postgres_changes_callback, filter="item=eq.10")
@@ -36,6 +36,10 @@ proc main() =
 
   rclient.join(chan2)
   chan2.on_broadcast("event_test", broadcast_callback)
+  proc terminate_callback(payload: JsonNode) =
+    echo "closing websocket connection ", payload
+    rclient.close()
+  chan2.on_broadcast("close", terminate_callback)
   rclient.subscribe(chan2)
 
   for i in 0 .. 10:
