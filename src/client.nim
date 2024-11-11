@@ -183,6 +183,8 @@ proc trigger(self: Channel; topic: string; payload: JsonNode; reference: string)
 
         if binding_event == payload_event:
           binding.callback(payload_fields["payload"])
+      of "presence":
+        discard
       else:
         echo "TOPIC:\t", topic # Unhandled topic???
 
