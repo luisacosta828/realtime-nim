@@ -269,10 +269,10 @@ template rejoin =
     break
 
 
-template retry(body: untyped) =
+template retry(code: untyped) =
   while true:
     try:
-      body
+      code
     except:
       rejoin()
 
