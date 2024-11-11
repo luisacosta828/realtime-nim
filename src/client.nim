@@ -72,8 +72,8 @@ type
     access_token: string
     client: WebSocket
     auto_reconnect: bool
-    initial_backoff: float
-    max_retries: Positive
+    initial_backoff: float = 1.0
+    max_retries: Positive = 5.Positive
     reference: int
 
   ChannelStates {.pure.} = enum
@@ -136,7 +136,7 @@ proc resend(self: RealtimeClient; channel: Channel; push: AsyncPush) =
   inc self.reference
   push.ref_event = "chan_reply_"
   push.ref_event.addInt self.reference
-  var msg = %*{
+  var message = %*{
     "topic": channel.topic,
     "event": push.event,
     "payload": push.payload,
@@ -146,7 +146,7 @@ proc resend(self: RealtimeClient; channel: Channel; push: AsyncPush) =
     push.received_resp = payload
 
   channel.on(push.ref_event, callback = on_reply)
-  self.client.send $msg
+  self.client.send $message
 
 
 proc trigger(self: Channel; topic: string; payload: JsonNode; reference: string) =
@@ -254,8 +254,8 @@ proc subscribe*(self: RealtimeClient; channel: Channel) =
 
 
 proc join*(self: RealtimeClient; channel: Channel) =
-  var j2 = %*{"topic": channel.topic, "event": "phx_join", "ref": nil, "payload": %*{"config": channel.params}}
-  self.client.send $j2
+  var message = %*{"topic": channel.topic, "event": "phx_join", "ref": nil, "payload": %*{"config": channel.params}}
+  self.client.send $message
 
 
 template rejoin =
@@ -277,7 +277,7 @@ template retry(body: untyped) =
       rejoin()
 
 
-template heartbeat_message: JsonNode =
+template heartbeat_message(): JsonNode =
   %*{
     "topic": PHOENIX_CHANNEL,
     "event": ChannelEvents.heartbeat,
