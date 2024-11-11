@@ -2,8 +2,8 @@
 # that also implements a Supabase Realtime client on top.
 # Elixir Phoenix Channels are basically just a websocket.
 import whisky # https://github.com/guzba/whisky 0.1.3
-import std/[assertions, tables, json]
-from std/strutils import strip
+import std/[assertions, tables, json, uri]
+from std/strutils import strip, replace, contains
 
 
 type
@@ -105,20 +105,26 @@ const
 template connect*(self: RealtimeClient) =
   self.client = newWebSocket(self.url & "/websocket?apikey=" & self.access_token)
 
+proc verify_url(url: string): string =
+  assert url.len > 0, "url must be a valid HTTP URL string"
+  var uri = parseUri(url)
+  var parsed_url = case uri.scheme
+      of "http", "https": replace(url, uri.scheme, "wss")
+      of "wss": url
+      else: "invalid"
+  assert parsed_url != "invalid", "url must be a valid https or wss endpoint"
+  if "realtime/v1" notin parsed_url:
+    result = $combine(parseUri(parsed_url), parseUri("realtime/v1"))
 
 proc newRealtimeClient*(url, token: string; channels = newTable[string, Channel](); auto_reconnect = false; timeout = -1): RealtimeClient =
-  assert url.len > 0, "url must be a valid HTTP URL string"
+  var parsed_url = verify_url(url)
   assert token.len > 0, "token must be a valid JWT string"
-  result = RealtimeClient(url: url, channels: channels, initial_backoff: 1.0, max_retries: 5, access_token: token, auto_reconnect: auto_reconnect, timeout: timeout)
+  result = RealtimeClient(url: parsed_url, channels: channels, initial_backoff: 1.0, max_retries: 5, access_token: token, auto_reconnect: auto_reconnect, timeout: timeout)
   result.connect()
 
 
 proc close*(self: RealtimeClient) =
   self.client.close()
-
-
-proc ping*(self: RealtimeClient) =
-  self.client.send("", MessageKind.Ping)
 
 
 template broadcast_config*(): RealtimeChannelOptions =
