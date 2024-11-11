@@ -1,7 +1,7 @@
 # Websockets-based client for Elixir Phoenix Channels,
 # that also implements a Supabase Realtime client on top.
 # Elixir Phoenix Channels are basically just a websocket.
-import whisky  # https://github.com/guzba/whisky
+import whisky # https://github.com/guzba/whisky
 import std/[tables, json]
 from std/strutils import strip
 
@@ -19,14 +19,14 @@ type
 
   RealtimeChannelConfig {.pure.} = enum
     broadcast = "broadcast"
-    presence  = "presence"
+    presence = "presence"
 
   ChannelEvents {.pure.} = enum
     `close` = "phx_close"
-    error   = "phx_error"
-    join    = "phx_join"
-    reply   = "phx_reply"
-    leave   = "phx_leave"
+    error = "phx_error"
+    join = "phx_join"
+    reply = "phx_reply"
+    leave = "phx_leave"
     heartbeat = "heartbeat"
     access_token = "access_token"
     broadcast = "broadcast"
@@ -34,7 +34,7 @@ type
 
   RealtimeChannelOptions = object
     case config: RealtimeChannelConfig
-    of broadcast: 
+    of broadcast:
       ack, self: bool
     of presence:
       key: string
@@ -81,16 +81,16 @@ type
     reference: int
 
   ChannelStates {.pure.} = enum
-    joined  = "joined"
-    closed  = "closed"
+    joined = "joined"
+    closed = "closed"
     errored = "errored"
     joining = "joining"
     leaving = "leaving"
 
   RealTimeSubscribeState {.pure.} = enum
-    subscribed    = "subscribed"
-    timed_out     = "timed_out"
-    closed        = "closed"
+    subscribed = "subscribed"
+    timed_out = "timed_out"
+    closed = "closed"
     channel_error = "channel_error"
 
   RealTimePresenceListenEvents {.pure.} = enum
@@ -99,15 +99,15 @@ type
     leave = "leave"
 
 
-template connect*(self: RealtimeClient) =  
-  self.client   = newWebSocket(self.url & "/websocket?apikey=" & self.access_token)
+template connect*(self: RealtimeClient) =
+  self.client = newWebSocket(self.url & "/websocket?apikey=" & self.access_token)
 
-proc newRealtimeClient*(url: string, token: string, channels: TableRef[string, Channel] = newTable[string,Channel](), auto_reconnect: bool = false): RealtimeClient = 
+proc newRealtimeClient*(url: string, token: string, channels: TableRef[string, Channel] = newTable[string, Channel](), auto_reconnect: bool = false): RealtimeClient =
   result = RealtimeClient(url: url, channels: channels, initial_backoff: 1.0, max_retries: 5, access_token: token, auto_reconnect: auto_reconnect)
   result.connect()
 
 
-template broadcast_config*():RealtimeChannelOptions =
+template broadcast_config*(): RealtimeChannelOptions =
   RealtimeChannelOptions(config: RealtimeChannelConfig.broadcast)
 
 proc receive(self: AsyncPush, status: string, callback: proc(payload: JsonNode)) =
@@ -134,7 +134,7 @@ proc resend(self: RealtimeClient, channel: Channel, push: AsyncPush) =
   proc on_reply(payload: JsonNode) =
     push.received_resp = payload
 
-  channel.on(push.ref_event,callback=on_reply)
+  channel.on(push.ref_event, callback = on_reply)
   self.client.send($msg)
 
 proc trigger(self: Channel, topic: string, payload: JsonNode, reference: string) =
@@ -145,11 +145,11 @@ proc trigger(self: Channel, topic: string, payload: JsonNode, reference: string)
         var
           binding_event = binding.filter.getOrDefault("event")
           data_type = payload_fields["data"].getFields()["type"].getStr
-        
+
         if binding_event == data_type:
           binding.callback(payload)
       elif topic == "broadcast":
-        var 
+        var
           binding_event = binding.filter.getOrDefault("event")
           payload_event = payload_fields["event"].getStr
 
@@ -158,7 +158,7 @@ proc trigger(self: Channel, topic: string, payload: JsonNode, reference: string)
 
 
 proc setChannel*(self: RealtimeClient, topic: string, params: RealtimeChannelOptions): Channel =
-  if topic.len > 0: 
+  if topic.len > 0:
     let channel_topic = "realtime:" & topic
     var channel = Channel(topic: channel_topic, params: params, join_push: initAsyncPush($ChannelEvents.join, params))
     proc on_join_push_ok(payload: JsonNode) =
@@ -170,10 +170,10 @@ proc setChannel*(self: RealtimeClient, topic: string, params: RealtimeChannelOpt
     proc on_reply(payload: JsonNode) =
       channel.trigger("chan_reply_" & $self.reference, payload, $self.reference)
 
-    channel.on($ChannelEvents.reply, callback=on_reply)
+    channel.on($ChannelEvents.reply, callback = on_reply)
     result = channel
 
-proc getChannels*(self: RealtimeClient): seq[Channel] = 
+proc getChannels*(self: RealtimeClient): seq[Channel] =
   for item in self.channels.values:
     result.add(item)
 
@@ -205,22 +205,22 @@ template update_payload(self: AsyncPush, payload: JsonNode) = self.payload = pay
 proc subscribe*(self: RealtimeClient, channel: Channel) =
   if not self.client.isNil:
     var
-      params    = channel.params
-      config    = params.config
+      params = channel.params
+      config = params.config
       broadcast = %* {}
-      presence  = %* {}
+      presence = %* {}
 
     if config == RealtimeChannelConfig.broadcast:
-      broadcast = %* { "ack": params.ack, "self": params.self }
+      broadcast = %* {"ack": params.ack, "self": params.self}
     else:
-      presence = %* { "key": params.key }
+      presence = %* {"key": params.key}
 
-    var filters:seq[Table[string, string]]
+    var filters: seq[Table[string, string]]
 
     if "postgres_changes" in channel.bindings:
       for item in channel.bindings["postgres_changes"]:
         filters.add item.filter
-      
+
     let payload = %* {
       "config": %* {
         "private": params.private,
@@ -234,7 +234,7 @@ proc subscribe*(self: RealtimeClient, channel: Channel) =
     self.rejoin(channel)
 
 proc join*(self: RealtimeClient, channel: Channel) =
-  var j2  = %* {"topic": channel.topic, "event": "phx_join", "ref": nil, "payload": %*{"config": channel.params}}
+  var j2 = %* {"topic": channel.topic, "event": "phx_join", "ref": nil, "payload": %*{"config": channel.params}}
   self.client.send($j2)
 
 template rejoin =
@@ -263,27 +263,27 @@ template heartbeat_message: JsonNode =
   }
 
 proc listen*(self: RealtimeClient): auto =
-  var 
-    raw_msg:  Option[Message]
+  var
+    raw_msg: Option[Message]
     json_msg: JsonNode
-    channel:  Channel
-    payload:  JsonNode
+    channel: Channel
+    payload: JsonNode
 
   retry:
-    raw_msg  = self.client.receiveMessage()
+    raw_msg = self.client.receiveMessage()
     json_msg = parseJson(raw_msg.get.data)
     if json_msg["topic"].getStr in self.channels:
-      channel  = self.channels[json_msg["topic"].getStr]
-      payload  = json_msg["payload"]
+      channel = self.channels[json_msg["topic"].getStr]
+      payload = json_msg["payload"]
       channel.trigger(json_msg["event"].getStr, payload, json_msg["ref"].getStr)
     self.client.send($heartbeat_message)
- 
+
 proc on_postgres_changes*(self: Channel, event: PostgresChanges, callback: Callback, table: string = "*", schema: string = "public", filter: string = "") =
   if $event in RealtimePostgresChangesListenEvent:
     var bindings_filters = {"event": $event, "schema": schema, "table": table}.toTable
     if filter.strip.len > 0:
       bindings_filters["filter"] = filter
-    self.on("postgres_changes", filter=bindings_filters, callback)
+    self.on("postgres_changes", filter = bindings_filters, callback)
 
 proc on_broadcast*(self: Channel, event: string, callback: Callback) =
   self.on("broadcast", {"event": event}.toTable, callback)
@@ -292,5 +292,3 @@ proc send_broadcast*(self: RealtimeClient, channel: Channel, event: string, payl
   channel.join_push.event = $ChannelEvents.broadcast
   channel.join_push.payload = %*{"type": "broadcast", "event": event, "payload": payload}
   self.resend(channel, channel.join_push)
-
-
